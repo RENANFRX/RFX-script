@@ -1,41 +1,46 @@
 
--- ██████╗ ███████╗███╗   ██╗ █████╗ ███╗   ██╗    ███████╗██████╗ ██╗  ██╗
--- ██╔══██╗██╔════╝████╗  ██║██╔══██╗████╗  ██║    ██╔════╝██╔══██╗╚██╗██╔╝
--- ██████╔╝█████╗  ██╔██╗ ██║███████║██╔██╗ ██║    █████╗  ██████╔╝ ╚███╔╝ 
--- ██╔══██╗██╔══╝  ██║╚██╗██║██╔══██║██║╚██╗██║    ██╔══╝  ██╔══██╗ ██╔██╗ 
--- ██║  ██║███████╗██║ ╚████║██║  ██║██║ ╚████║    ██║     ██║  ██║██╔╝ ██╗
--- ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝    ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝
---            RENAN FRX | Scripts — Auto Farm Uber
---         Jogo: NEW CAR PHYSICS | Brazilian Mechanics
+-- ╔══════════════════════════════════════════════════╗
+-- ║         RENAN FRX | Scripts  v2.0               ║
+-- ║   Auto Farm Uber — Brazilian Mechanics           ║
+-- ╚══════════════════════════════════════════════════╝
+
+-- ============================================================
+--  SERVIÇOS
+-- ============================================================
+local Players          = game:GetService("Players")
+local TweenService     = game:GetService("TweenService")
+local StarterGui       = game:GetService("StarterGui")
+local RunService       = game:GetService("RunService")
+
+local LocalPlayer      = Players.LocalPlayer
+local Character        = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+local Humanoid         = Character:WaitForChild("Humanoid")
 
 -- ============================================================
 --  CONFIGURAÇÕES
 -- ============================================================
 local CONFIG = {
-    FarmAtivo       = true,       -- Liga/desliga o auto farm
-    Velocidade      = 16,         -- Velocidade de WalkSpeed temporária (para entrar no carro)
-    TempoEspera     = 1.5,        -- Segundos entre cada ciclo
-    TempoEntrada    = 3,          -- Segundos esperando cliente entrar
-    Debug           = true,       -- Mostra logs no console
+    TempoEspera   = 1.5,
+    TempoEntrada  = 3,
+    Debug         = true,
 }
 
--- ============================================================
---  SERVIÇOS
--- ============================================================
-local Players        = game:GetService("Players")
-local RunService     = game:GetService("RunService")
-local TweenService   = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local StarterGui     = game:GetService("StarterGui")
-
-local LocalPlayer   = Players.LocalPlayer
-local Character     = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local Humanoid      = Character:WaitForChild("Humanoid")
+local farmAtivo  = false
+local ciclos     = 0
+local corridas   = 0
+local farmThread = nil
+local minimizado = false
 
 -- ============================================================
---  NOTIFICAÇÃO
+--  UTILITÁRIOS
 -- ============================================================
+local function Log(msg)
+    if CONFIG.Debug then
+        print("[RENAN FRX] " .. tostring(msg))
+    end
+end
+
 local function Notificar(titulo, mensagem, duracao)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
@@ -46,278 +51,306 @@ local function Notificar(titulo, mensagem, duracao)
     end)
 end
 
-local function Log(msg)
-    if CONFIG.Debug then
-        print("[RENAN FRX] " .. tostring(msg))
-    end
-end
-
--- ============================================================
---  GUI PRINCIPAL
--- ============================================================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RenanFRX_GUI"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local ok, err = pcall(function()
-    ScreenGui.Parent = game:GetService("CoreGui")
-end)
-if not ok then
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
-
--- Frame principal
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 280, 0, 320)
-MainFrame.Position = UDim2.new(0.5, -140, 0.05, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 10)
-UICorner.Parent = MainFrame
-
--- Barra de título
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 42)
-TitleBar.BackgroundColor3 = Color3.fromRGB(30, 0, 60)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
-
-local UICornerTitle = Instance.new("UICorner")
-UICornerTitle.CornerRadius = UDim.new(0, 10)
-UICornerTitle.Parent = TitleBar
-
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, 0, 1, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "⚡ RENAN FRX | Scripts"
-TitleLabel.TextColor3 = Color3.fromRGB(200, 80, 255)
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextSize = 15
-TitleLabel.Parent = TitleBar
-
--- Status Label
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Size = UDim2.new(1, -20, 0, 30)
-StatusLabel.Position = UDim2.new(0, 10, 0, 50)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Text = "🔴 Status: Desativado"
-StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-StatusLabel.Font = Enum.Font.GothamSemibold
-StatusLabel.TextSize = 13
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.Parent = MainFrame
-
--- Ciclos Label
-local CiclosLabel = Instance.new("TextLabel")
-CiclosLabel.Size = UDim2.new(1, -20, 0, 25)
-CiclosLabel.Position = UDim2.new(0, 10, 0, 82)
-CiclosLabel.BackgroundTransparency = 1
-CiclosLabel.Text = "🔄 Ciclos: 0"
-CiclosLabel.TextColor3 = Color3.fromRGB(180, 180, 255)
-CiclosLabel.Font = Enum.Font.Gotham
-CiclosLabel.TextSize = 12
-CiclosLabel.TextXAlignment = Enum.TextXAlignment.Left
-CiclosLabel.Parent = MainFrame
-
--- Ganhos Label
-local GanhosLabel = Instance.new("TextLabel")
-GanhosLabel.Size = UDim2.new(1, -20, 0, 25)
-GanhosLabel.Position = UDim2.new(0, 10, 0, 107)
-GanhosLabel.BackgroundTransparency = 1
-GanhosLabel.Text = "💰 Corridas: 0"
-GanhosLabel.TextColor3 = Color3.fromRGB(80, 255, 150)
-GanhosLabel.Font = Enum.Font.Gotham
-GanhosLabel.TextSize = 12
-GanhosLabel.TextXAlignment = Enum.TextXAlignment.Left
-GanhosLabel.Parent = MainFrame
-
--- Separador
-local Sep = Instance.new("Frame")
-Sep.Size = UDim2.new(1, -20, 0, 1)
-Sep.Position = UDim2.new(0, 10, 0, 140)
-Sep.BackgroundColor3 = Color3.fromRGB(80, 0, 150)
-Sep.BorderSizePixel = 0
-Sep.Parent = MainFrame
-
--- Botão Toggle Farm
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(1, -20, 0, 40)
-ToggleBtn.Position = UDim2.new(0, 10, 0, 150)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 0, 80)
-ToggleBtn.Text = "▶ INICIAR AUTO FARM"
-ToggleBtn.TextColor3 = Color3.fromRGB(200, 80, 255)
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.TextSize = 13
-ToggleBtn.BorderSizePixel = 0
-ToggleBtn.Parent = MainFrame
-
-local UICornerBtn = Instance.new("UICorner")
-UICornerBtn.CornerRadius = UDim.new(0, 8)
-UICornerBtn.Parent = ToggleBtn
-
--- Botão Teleporte Manual
-local TpBtn = Instance.new("TextButton")
-TpBtn.Size = UDim2.new(1, -20, 0, 36)
-TpBtn.Position = UDim2.new(0, 10, 0, 200)
-TpBtn.BackgroundColor3 = Color3.fromRGB(20, 40, 80)
-TpBtn.Text = "📍 Teleportar ao Cliente"
-TpBtn.TextColor3 = Color3.fromRGB(100, 180, 255)
-TpBtn.Font = Enum.Font.GothamSemibold
-TpBtn.TextSize = 12
-TpBtn.BorderSizePixel = 0
-TpBtn.Parent = MainFrame
-
-local UICornerTp = Instance.new("UICorner")
-UICornerTp.CornerRadius = UDim.new(0, 8)
-UICornerTp.Parent = TpBtn
-
--- Botão Fechar
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(1, -20, 0, 36)
-CloseBtn.Position = UDim2.new(0, 10, 0, 245)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(80, 10, 10)
-CloseBtn.Text = "✖ Fechar GUI"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.Font = Enum.Font.GothamSemibold
-CloseBtn.TextSize = 12
-CloseBtn.BorderSizePixel = 0
-CloseBtn.Parent = MainFrame
-
-local UICornerClose = Instance.new("UICorner")
-UICornerClose.CornerRadius = UDim.new(0, 8)
-UICornerClose.Parent = CloseBtn
-
--- Rodapé
-local Footer = Instance.new("TextLabel")
-Footer.Size = UDim2.new(1, 0, 0, 24)
-Footer.Position = UDim2.new(0, 0, 1, -24)
-Footer.BackgroundTransparency = 1
-Footer.Text = "github/RenanFRX  •  v1.0"
-Footer.TextColor3 = Color3.fromRGB(80, 80, 100)
-Footer.Font = Enum.Font.Gotham
-Footer.TextSize = 10
-Footer.Parent = MainFrame
-
--- ============================================================
---  LÓGICA DO AUTO FARM
--- ============================================================
-local farmAtivo   = false
-local ciclos      = 0
-local corridas    = 0
-local farmThread  = nil
-
--- Atualiza o character caso respawn
 LocalPlayer.CharacterAdded:Connect(function(char)
     Character        = char
     HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
     Humanoid         = char:WaitForChild("Humanoid")
-    Log("Character atualizado após respawn.")
 end)
 
--- Função segura de teleporte
-local function TeleportarPara(posicao, offset)
+-- ============================================================
+--  CRIAÇÃO DA GUI
+-- ============================================================
+-- Remove GUI antiga se existir
+pcall(function()
+    local old = game:GetService("CoreGui"):FindFirstChild("RenanFRX_GUI")
+    if old then old:Destroy() end
+end)
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name            = "RenanFRX_GUI"
+ScreenGui.ResetOnSpawn    = false
+ScreenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder    = 999
+
+local ok = pcall(function() ScreenGui.Parent = game:GetService("CoreGui") end)
+if not ok then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+-- ── FRAME PRINCIPAL ─────────────────────────────────────────
+local MENU_H   = 310   -- altura expandida
+local TITLE_H  = 44    -- altura minimizada
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name              = "MainFrame"
+MainFrame.Size              = UDim2.new(0, 290, 0, MENU_H)
+MainFrame.Position          = UDim2.new(0.5, -145, 0.04, 0)
+MainFrame.BackgroundColor3  = Color3.fromRGB(12, 10, 20)
+MainFrame.BorderSizePixel   = 0
+MainFrame.Active             = true
+MainFrame.Draggable          = true
+MainFrame.ClipsDescendants  = true
+MainFrame.Parent            = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+-- Borda roxa
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Color     = Color3.fromRGB(140, 0, 255)
+Stroke.Thickness = 1.5
+
+-- ── BARRA DE TÍTULO ─────────────────────────────────────────
+local TitleBar = Instance.new("Frame")
+TitleBar.Name             = "TitleBar"
+TitleBar.Size             = UDim2.new(1, 0, 0, TITLE_H)
+TitleBar.BackgroundColor3 = Color3.fromRGB(28, 0, 56)
+TitleBar.BorderSizePixel  = 0
+TitleBar.ZIndex           = 10
+TitleBar.Parent           = MainFrame
+
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
+
+-- Ícone / título
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size               = UDim2.new(1, -100, 1, 0)
+TitleLabel.Position           = UDim2.new(0, 12, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text               = "⚡ RENAN FRX | Scripts"
+TitleLabel.TextColor3         = Color3.fromRGB(200, 80, 255)
+TitleLabel.Font               = Enum.Font.GothamBold
+TitleLabel.TextSize           = 14
+TitleLabel.TextXAlignment     = Enum.TextXAlignment.Left
+TitleLabel.ZIndex             = 11
+TitleLabel.Parent             = TitleBar
+
+-- ── BOTÃO MINIMIZAR ─────────────────────────────────────────
+local MinBtn = Instance.new("TextButton")
+MinBtn.Name              = "MinBtn"
+MinBtn.Size              = UDim2.new(0, 32, 0, 26)
+MinBtn.Position          = UDim2.new(1, -72, 0.5, -13)
+MinBtn.BackgroundColor3  = Color3.fromRGB(50, 0, 100)
+MinBtn.Text              = "—"
+MinBtn.TextColor3        = Color3.fromRGB(200, 150, 255)
+MinBtn.Font              = Enum.Font.GothamBold
+MinBtn.TextSize          = 16
+MinBtn.BorderSizePixel   = 0
+MinBtn.ZIndex            = 12
+MinBtn.Parent            = TitleBar
+
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+
+-- ── BOTÃO FECHAR ────────────────────────────────────────────
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Name              = "CloseBtn"
+CloseBtn.Size              = UDim2.new(0, 32, 0, 26)
+CloseBtn.Position          = UDim2.new(1, -34, 0.5, -13)
+CloseBtn.BackgroundColor3  = Color3.fromRGB(130, 0, 20)
+CloseBtn.Text              = "✕"
+CloseBtn.TextColor3        = Color3.fromRGB(255, 100, 100)
+CloseBtn.Font              = Enum.Font.GothamBold
+CloseBtn.TextSize          = 14
+CloseBtn.BorderSizePixel   = 0
+CloseBtn.ZIndex            = 12
+CloseBtn.Parent            = TitleBar
+
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+-- ── CONTEÚDO (esconde ao minimizar) ─────────────────────────
+local Content = Instance.new("Frame")
+Content.Name                 = "Content"
+Content.Size                 = UDim2.new(1, 0, 1, -TITLE_H)
+Content.Position             = UDim2.new(0, 0, 0, TITLE_H)
+Content.BackgroundTransparency = 1
+Content.Parent               = MainFrame
+
+local function MkLabel(parent, text, posY, color, size, font)
+    local lb = Instance.new("TextLabel")
+    lb.Size               = UDim2.new(1, -20, 0, 26)
+    lb.Position           = UDim2.new(0, 10, 0, posY)
+    lb.BackgroundTransparency = 1
+    lb.Text               = text
+    lb.TextColor3         = color or Color3.fromRGB(210, 210, 255)
+    lb.Font               = font or Enum.Font.Gotham
+    lb.TextSize           = size or 12
+    lb.TextXAlignment     = Enum.TextXAlignment.Left
+    lb.Parent             = parent
+    return lb
+end
+
+local function MkButton(parent, text, posY, bgColor, txtColor)
+    local btn = Instance.new("TextButton")
+    btn.Size              = UDim2.new(1, -20, 0, 38)
+    btn.Position          = UDim2.new(0, 10, 0, posY)
+    btn.BackgroundColor3  = bgColor  or Color3.fromRGB(40, 0, 80)
+    btn.Text              = text
+    btn.TextColor3        = txtColor or Color3.fromRGB(200, 80, 255)
+    btn.Font              = Enum.Font.GothamBold
+    btn.TextSize          = 13
+    btn.BorderSizePixel   = 0
+    btn.Parent            = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    return btn
+end
+
+-- Labels de info
+local StatusLabel  = MkLabel(Content, "🔴 Status: Desativado",  6,  Color3.fromRGB(255,80,80),   13, Enum.Font.GothamSemibold)
+local CiclosLabel  = MkLabel(Content, "🔄 Ciclos: 0",           34, Color3.fromRGB(180,150,255), 12)
+local CoridasLabel = MkLabel(Content, "💰 Corridas: 0",         57, Color3.fromRGB(80,255,150),  12)
+
+-- Separador
+local Sep = Instance.new("Frame")
+Sep.Size             = UDim2.new(1, -20, 0, 1)
+Sep.Position         = UDim2.new(0, 10, 0, 88)
+Sep.BackgroundColor3 = Color3.fromRGB(100, 0, 180)
+Sep.BorderSizePixel  = 0
+Sep.Parent           = Content
+
+-- Botões de ação
+local ToggleBtn = MkButton(Content, "▶  INICIAR AUTO FARM",   96,  Color3.fromRGB(40,0,80),   Color3.fromRGB(200,80,255))
+local TpBtn     = MkButton(Content, "📍  Teleportar ao Cliente", 142, Color3.fromRGB(10,30,70),  Color3.fromRGB(100,180,255))
+
+-- Segundo separador
+local Sep2 = Instance.new("Frame")
+Sep2.Size             = UDim2.new(1, -20, 0, 1)
+Sep2.Position         = UDim2.new(0, 10, 0, 188)
+Sep2.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+Sep2.BorderSizePixel  = 0
+Sep2.Parent           = Content
+
+-- Rodapé
+local Footer = Instance.new("TextLabel")
+Footer.Size               = UDim2.new(1, 0, 0, 22)
+Footer.Position           = UDim2.new(0, 0, 0, 196)
+Footer.BackgroundTransparency = 1
+Footer.Text               = "RENAN FRX | Scripts  •  v2.0"
+Footer.TextColor3         = Color3.fromRGB(70, 70, 90)
+Footer.Font               = Enum.Font.Gotham
+Footer.TextSize           = 10
+Footer.Parent             = Content
+
+-- ============================================================
+--  MINIMIZE / CLOSE LOGIC
+-- ============================================================
+local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+MinBtn.MouseButton1Click:Connect(function()
+    minimizado = not minimizado
+    if minimizado then
+        -- Colapsa para só a TitleBar
+        TweenService:Create(MainFrame, tweenInfo, {
+            Size = UDim2.new(0, 290, 0, TITLE_H)
+        }):Play()
+        MinBtn.Text = "▢"  -- ícone expandir
+        MinBtn.TextColor3 = Color3.fromRGB(255, 200, 80)
+    else
+        -- Expande de volta
+        TweenService:Create(MainFrame, tweenInfo, {
+            Size = UDim2.new(0, 290, 0, MENU_H)
+        }):Play()
+        MinBtn.Text = "—"
+        MinBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+    end
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    -- Para o farm antes de fechar
+    farmAtivo = false
+    if farmThread then
+        task.cancel(farmThread)
+        farmThread = nil
+    end
+    -- Animação de saída
+    TweenService:Create(MainFrame, TweenInfo.new(0.2), {
+        Size     = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(MainFrame.Position.X.Scale, MainFrame.Position.X.Offset + 145,
+                             MainFrame.Position.Y.Scale, MainFrame.Position.Y.Offset + MENU_H/2)
+    }):Play()
+    task.delay(0.25, function()
+        ScreenGui:Destroy()
+    end)
+    Notificar("RENAN FRX | Scripts", "GUI fechada. Até mais! 👋", 3)
+end)
+
+-- Hover nos botões da TitleBar
+for _, btn in ipairs({MinBtn, CloseBtn}) do
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), {
+            BackgroundTransparency = 0.3
+        }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), {
+            BackgroundTransparency = 0
+        }):Play()
+    end)
+end
+
+-- ============================================================
+--  LÓGICA DO AUTO FARM
+-- ============================================================
+local function TeleportarPara(pos, offset)
     offset = offset or Vector3.new(0, 3, 0)
-    if HumanoidRootPart and posicao then
-        HumanoidRootPart.CFrame = CFrame.new(posicao + offset)
+    if HumanoidRootPart and pos then
+        HumanoidRootPart.CFrame = CFrame.new(pos + offset)
         task.wait(0.2)
     end
 end
 
--- Procura NPCs / clientes de uber no workspace
 local function AcharCliente()
-    local workspace = game:GetService("Workspace")
-
-    -- Tenta encontrar NPCs com nomes comuns do jogo
-    local nomesNPC = {
-        "UberClient", "Cliente", "Passageiro", "NPC", "Passenger",
-        "UberPassenger", "ClienteUber", "Customer"
-    }
-
+    local nomesNPC = {"uberclient","cliente","passageiro","npc","passenger",
+                       "uberpassenger","clienteuber","customer","person"}
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj ~= Character then
-            for _, nome in ipairs(nomesNPC) do
-                if string.find(string.lower(obj.Name), string.lower(nome)) then
+            local nLow = string.lower(obj.Name)
+            for _, n in ipairs(nomesNPC) do
+                if string.find(nLow, n) then
                     local root = obj:FindFirstChild("HumanoidRootPart")
-                        or obj:FindFirstChild("RootPart")
-                        or obj.PrimaryPart
-                    if root then
-                        return obj, root.Position
-                    end
+                        or obj:FindFirstChild("RootPart") or obj.PrimaryPart
+                    if root then return obj, root.Position end
                 end
             end
         end
     end
-
-    -- Fallback: procura qualquer Model com Humanoid (NPC)
+    -- fallback: qualquer humanoid
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj:FindFirstChildOfClass("Humanoid") and obj ~= Character then
-            local root = obj:FindFirstChild("HumanoidRootPart")
-                or obj.PrimaryPart
-            if root then
-                return obj, root.Position
-            end
+            local root = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart
+            if root then return obj, root.Position end
         end
     end
-
     return nil, nil
 end
 
--- Procura o destino do cliente (waypoint/destino marcado no jogo)
 local function AcharDestino()
-    local workspace = game:GetService("Workspace")
-
-    local nomesDestino = {
-        "Destino", "Destination", "Waypoint", "UberDestino",
-        "UberDestination", "DropOff", "DropPoint", "Meta"
-    }
-
+    local nomesDestino = {"destino","destination","waypoint","uberdestino",
+                           "uberdestination","dropoff","droppoint","meta"}
     for _, obj in ipairs(workspace:GetDescendants()) do
-        local nLower = string.lower(obj.Name)
+        local nLow = string.lower(obj.Name)
         for _, nd in ipairs(nomesDestino) do
-            if string.find(nLower, string.lower(nd)) then
-                if obj:IsA("BasePart") or obj:IsA("Model") then
-                    local pos = obj:IsA("BasePart") and obj.Position
-                        or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                    if pos then
-                        return pos
-                    end
+            if string.find(nLow, nd) then
+                if obj:IsA("BasePart") then
+                    return obj.Position
+                elseif obj:IsA("Model") and obj.PrimaryPart then
+                    return obj.PrimaryPart.Position
                 end
             end
         end
     end
-
-    -- Fallback: gera destino aleatório próximo (caso não ache)
+    -- fallback aleatório
     if HumanoidRootPart then
-        local pos = HumanoidRootPart.Position
-        return pos + Vector3.new(math.random(-80, 80), 0, math.random(-80, 80))
+        local p = HumanoidRootPart.Position
+        return p + Vector3.new(math.random(-100,100), 0, math.random(-100,100))
     end
-
-    return nil
 end
 
--- Procura o carro do jogador
 local function AcharCarro()
-    local workspace = game:GetService("Workspace")
-    local nomeJogador = string.lower(LocalPlayer.Name)
-
+    local keywords = {"car","carro","veiculo","taxi","uber","vehicle","auto"}
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("Model") then
-            local nLower = string.lower(obj.Name)
-            -- Procura modelos de carro associados ao jogador
-            if string.find(nLower, "car") or string.find(nLower, "veiculo")
-                or string.find(nLower, "carro") or string.find(nLower, "taxi")
-                or string.find(nLower, "uber") then
-                local seat = obj:FindFirstChildOfClass("VehicleSeat")
-                    or obj:FindFirstChild("DriveSeat")
-                if seat then
-                    return obj, seat
+            local nLow = string.lower(obj.Name)
+            for _, kw in ipairs(keywords) do
+                if string.find(nLow, kw) then
+                    local seat = obj:FindFirstChildOfClass("VehicleSeat")
+                        or obj:FindFirstChild("DriveSeat")
+                    if seat then return obj, seat end
                 end
             end
         end
@@ -325,94 +358,70 @@ local function AcharCarro()
     return nil, nil
 end
 
--- Espera o cliente entrar no carro
-local function EsperarClienteEntrar(assentoCliente, timeout)
-    timeout = timeout or CONFIG.TempoEntrada
+local function EsperarClienteEntrar(assento, timeout)
     local t = 0
-    while t < timeout do
-        task.wait(0.5)
-        t = t + 0.5
-        -- Verifica se algum humanoid está sentado no assento de passageiro
-        if assentoCliente and assentoCliente.Occupant then
-            return true
-        end
+    while t < (timeout or CONFIG.TempoEntrada) do
+        task.wait(0.4)
+        t = t + 0.4
+        if assento and assento.Occupant then return true end
     end
     return false
 end
 
--- Ciclo principal do auto farm
+local function AtualizarStatus(texto, cor)
+    StatusLabel.Text       = texto
+    StatusLabel.TextColor3 = cor or Color3.fromRGB(210,210,255)
+end
+
 local function CicloFarm()
     ciclos = ciclos + 1
     CiclosLabel.Text = "🔄 Ciclos: " .. ciclos
-    Log("Iniciando ciclo #" .. ciclos)
+    Log("Ciclo #" .. ciclos)
 
-    -- 1) Achar carro
     local carro, assento = AcharCarro()
     if not assento then
-        Log("Carro não encontrado, aguardando...")
+        AtualizarStatus("🟡 Status: Procurando carro...", Color3.fromRGB(255,220,0))
         task.wait(2)
         return
     end
 
-    -- 2) Teleportar ao assento do carro (motorista)
+    -- Teleporta ao carro
     local posAssento = assento.WorldCFrame.Position
     TeleportarPara(posAssento, Vector3.new(0, 2, 0))
-    Log("Teleportado ao carro.")
-    task.wait(0.5)
+    task.wait(0.4)
+    pcall(function() assento:Sit(Humanoid) end)
+    task.wait(0.6)
 
-    -- Sentar no carro
-    pcall(function()
-        assento:Sit(Humanoid)
-    end)
-    task.wait(0.8)
-
-    -- 3) Achar cliente
-    local cliente, posCliente = AcharCliente()
+    -- Procura cliente
+    local _, posCliente = AcharCliente()
     if not posCliente then
-        Log("Nenhum cliente encontrado, aguardando...")
-        StatusLabel.Text = "🟡 Status: Procurando cliente..."
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+        AtualizarStatus("🟡 Status: Procurando cliente...", Color3.fromRGB(255,200,0))
         task.wait(2)
         return
     end
 
-    Log("Cliente encontrado em: " .. tostring(posCliente))
-    StatusLabel.Text = "🟠 Status: Indo ao cliente..."
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 150, 0)
+    AtualizarStatus("🟠 Status: Indo ao cliente...", Color3.fromRGB(255,150,0))
+    Log("Teleportando ao cliente: " .. tostring(posCliente))
 
-    -- 4) Teleportar carro até o cliente
+    -- Move carro ao cliente
     if carro and carro.PrimaryPart then
         carro:SetPrimaryPartCFrame(CFrame.new(posCliente + Vector3.new(0, 3, 5)))
-        task.wait(0.5)
     else
         TeleportarPara(posCliente)
     end
+    task.wait(0.5)
 
-    Log("Aguardando cliente entrar no carro...")
-    StatusLabel.Text = "🟡 Status: Aguardando cliente..."
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 220, 0)
-
-    -- Assento de passageiro
-    local assentoPassageiro = carro and (
+    AtualizarStatus("🟡 Status: Aguardando cliente entrar...", Color3.fromRGB(255,220,0))
+    local assentoPass = carro and (
         carro:FindFirstChild("PassengerSeat")
         or carro:FindFirstChild("Seat")
         or carro:FindFirstChild("Passageiro")
     )
+    EsperarClienteEntrar(assentoPass, CONFIG.TempoEntrada)
 
-    -- Espera cliente entrar
-    local clienteEntrou = EsperarClienteEntrar(assentoPassageiro, CONFIG.TempoEntrada)
-
-    -- 5) Teleportar para o destino
+    -- Destino
     local posDestino = AcharDestino()
-    if not posDestino then
-        Log("Destino não encontrado, usando posição aleatória.")
-        posDestino = HumanoidRootPart.Position + Vector3.new(
-            math.random(-100, 100), 0, math.random(-100, 100)
-        )
-    end
-
-    StatusLabel.Text = "🟢 Status: Indo ao destino..."
-    StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 150)
+    AtualizarStatus("🚗 Status: Levando ao destino...", Color3.fromRGB(80,200,255))
     Log("Teleportando ao destino: " .. tostring(posDestino))
 
     if carro and carro.PrimaryPart then
@@ -421,36 +430,34 @@ local function CicloFarm()
         TeleportarPara(posDestino)
     end
 
-    task.wait(1)
+    task.wait(0.8)
     corridas = corridas + 1
-    GanhosLabel.Text = "💰 Corridas: " .. corridas
-    Log("Corrida #" .. corridas .. " concluída!")
-
-    Notificar("RENAN FRX", "✅ Corrida " .. corridas .. " concluída!", 3)
-    StatusLabel.Text = "✅ Status: Corrida concluída!"
-    StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    CoridasLabel.Text = "💰 Corridas: " .. corridas
+    AtualizarStatus("✅ Status: Corrida " .. corridas .. " concluída!", Color3.fromRGB(80,255,150))
+    Notificar("RENAN FRX", "✅ Corrida #" .. corridas .. " finalizada!", 3)
 
     task.wait(CONFIG.TempoEspera)
 end
 
--- Loop principal sem travar
+-- ============================================================
+--  TOGGLE FARM
+-- ============================================================
 local function IniciarFarm()
     farmAtivo = true
-    StatusLabel.Text = "🟢 Status: Farm Ativo"
-    StatusLabel.TextColor3 = Color3.fromRGB(80, 255, 150)
-    ToggleBtn.Text = "⏹ PARAR AUTO FARM"
+    AtualizarStatus("🟢 Status: Farm Ativo", Color3.fromRGB(80,255,150))
+    ToggleBtn.Text             = "⏹  PARAR AUTO FARM"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 20)
-
+    ToggleBtn.TextColor3       = Color3.fromRGB(255, 80, 80)
     Notificar("RENAN FRX | Scripts", "🚀 Auto Farm Uber INICIADO!", 4)
 
     farmThread = task.spawn(function()
         while farmAtivo do
-            local ok, err = pcall(CicloFarm)
-            if not ok then
-                Log("Erro no ciclo: " .. tostring(err))
+            local s, e = pcall(CicloFarm)
+            if not s then
+                Log("Erro: " .. tostring(e))
                 task.wait(2)
             end
-            task.wait(0.1) -- yield para não travar
+            task.wait(0.05)
         end
     end)
 end
@@ -461,22 +468,15 @@ local function PararFarm()
         task.cancel(farmThread)
         farmThread = nil
     end
-    StatusLabel.Text = "🔴 Status: Desativado"
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-    ToggleBtn.Text = "▶ INICIAR AUTO FARM"
+    AtualizarStatus("🔴 Status: Desativado", Color3.fromRGB(255,80,80))
+    ToggleBtn.Text             = "▶  INICIAR AUTO FARM"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 0, 80)
-    Notificar("RENAN FRX | Scripts", "⛔ Auto Farm Uber PARADO!", 3)
+    ToggleBtn.TextColor3       = Color3.fromRGB(200, 80, 255)
+    Notificar("RENAN FRX | Scripts", "⛔ Auto Farm PARADO!", 3)
 end
 
--- ============================================================
---  EVENTOS DOS BOTÕES
--- ============================================================
 ToggleBtn.MouseButton1Click:Connect(function()
-    if farmAtivo then
-        PararFarm()
-    else
-        IniciarFarm()
-    end
+    if farmAtivo then PararFarm() else IniciarFarm() end
 end)
 
 TpBtn.MouseButton1Click:Connect(function()
@@ -489,27 +489,36 @@ TpBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    PararFarm()
-    ScreenGui:Destroy()
-end)
-
--- Hover effects
-ToggleBtn.MouseEnter:Connect(function()
-    TweenService:Create(ToggleBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = Color3.fromRGB(90, 0, 160)
-    }):Play()
-end)
-ToggleBtn.MouseLeave:Connect(function()
-    TweenService:Create(ToggleBtn, TweenInfo.new(0.15), {
-        BackgroundColor3 = farmAtivo and Color3.fromRGB(80, 0, 20) or Color3.fromRGB(40, 0, 80)
-    }):Play()
-end)
+-- Hover nos botões de ação
+for _, btn in ipairs({ToggleBtn, TpBtn}) do
+    local origColor = btn.BackgroundColor3
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), {
+            BackgroundColor3 = Color3.new(
+                origColor.R + 0.08,
+                origColor.G + 0.03,
+                origColor.B + 0.12
+            )
+        }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), {
+            BackgroundColor3 = origColor
+        }):Play()
+    end)
+end
 
 -- ============================================================
---  INICIALIZAÇÃO
+--  ANIMAÇÃO DE ABERTURA
 -- ============================================================
-Log("RENAN FRX | Scripts carregado com sucesso!")
-Notificar("RENAN FRX | Scripts", "✅ Script carregado! Clique em INICIAR.", 5)
-</parameter>
-</invoke>
+MainFrame.Size = UDim2.new(0, 0, 0, 0)
+MainFrame.Position = UDim2.new(0.5, 0, 0.04, MENU_H/2)
+TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size     = UDim2.new(0, 290, 0, MENU_H),
+    Position = UDim2.new(0.5, -145, 0.04, 0)
+}):Play()
+
+Log("RENAN FRX | Scripts v2.0 carregado!")
+task.delay(0.4, function()
+    Notificar("RENAN FRX | Scripts", "✅ Menu carregado! Clique em INICIAR.", 5)
+end)
