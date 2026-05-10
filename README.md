@@ -8,7 +8,6 @@ local Window = Rayfield:CreateWindow({
     ToggleUIKeybind = "K",
     ConfigurationSaving = {
         Enabled = true,
-        FolderName = nil,
         FileName = "MecBR_Hub"
     }
 })
@@ -18,31 +17,33 @@ local PlayerTab = Window:CreateTab("Player", 4483362458)
 local TPTab = Window:CreateTab("🧿Teleports", 4483362458)
 local VeiculoTab = Window:CreateTab("🚗Veiculos", 4483362458)
 local UberTab = Window:CreateTab("🚕 Uber Farm", 4483362458)
+local CreditsTab = Window:CreateTab("Credits", 4483362458)
 
--- ==================== PLAYER TAB ====================
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local humanoid
-local infiniteJumpEnabled = false
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
-local function onCharacterAdded(character)
-    humanoid = character:WaitForChild("Humanoid")
+-- ==================== PLAYER TAB ====================
+
+local function onCharacterAdded(char)
+    character = char
+    humanoid = char:WaitForChild("Humanoid")
+    humanoidRootPart = char:WaitForChild("HumanoidRootPart")
 end
 player.CharacterAdded:Connect(onCharacterAdded)
-if player.Character then onCharacterAdded(player.Character) end
 
 -- Infinite Jump
+local infiniteJumpEnabled = false
 PlayerTab:CreateToggle({
     Name = "Infinite Jump",
     CurrentValue = false,
-    Callback = function(Value)
-        infiniteJumpEnabled = Value
-    end,
+    Callback = function(Value) infiniteJumpEnabled = Value end
 })
-
 UserInputService.JumpRequest:Connect(function()
     if infiniteJumpEnabled and humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
@@ -52,17 +53,16 @@ end)
 -- WalkSpeed
 PlayerTab:CreateSlider({
     Name = "WalkSpeed",
-    Range = {0, 150},
+    Range = {16, 150},
     Increment = 1,
     Suffix = "WS",
     CurrentValue = 16,
     Callback = function(Value)
         if humanoid then humanoid.WalkSpeed = Value end
-    end,
+    end
 })
 
 -- JumpPower
-local currentJumpPower = 50
 PlayerTab:CreateSlider({
     Name = "JumpPower",
     Range = {0, 250},
@@ -70,26 +70,20 @@ PlayerTab:CreateSlider({
     Suffix = "JP",
     CurrentValue = 50,
     Callback = function(Value)
-        currentJumpPower = Value
         if humanoid then humanoid.JumpPower = Value end
-    end,
+    end
 })
 
 -- Noclip
 local noclipEnabled = false
-local character = player.Character or player.CharacterAdded:Wait()
-
 PlayerTab:CreateToggle({
     Name = "Noclip",
     CurrentValue = false,
-    Callback = function(Value)
-        noclipEnabled = Value
-    end,
+    Callback = function(Value) noclipEnabled = Value end
 })
-
 RunService.Stepped:Connect(function()
     if noclipEnabled and character then
-        for _, part in ipairs(character:GetChildren()) do
+        for _, part in pairs(character:GetChildren()) do
             if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
                 part.CanCollide = false
             end
@@ -100,8 +94,6 @@ end)
 -- Fly
 local flying = false
 local flySpeed = 50
-local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
-
 PlayerTab:CreateToggle({
     Name = "Fly",
     CurrentValue = false,
@@ -110,69 +102,54 @@ PlayerTab:CreateToggle({
         if not flying and humanoidRootPart then
             humanoidRootPart.Velocity = Vector3.new(0,0,0)
         end
-    end,
+    end
 })
-
 PlayerTab:CreateSlider({
     Name = "Fly Speed",
     Range = {10, 300},
     Increment = 5,
     Suffix = "Studs/s",
     CurrentValue = 50,
-    Callback = function(Value)
-        flySpeed = Value
-    end,
+    Callback = function(Value) flySpeed = Value end
 })
 
 -- Fly Controls
-local keysPressed = {W=false, A=false, S=false, D=false, Space=false, LeftShift=false}
-
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    local k = input.KeyCode
-    if k == Enum.KeyCode.W then keysPressed.W = true end
-    if k == Enum.KeyCode.A then keysPressed.A = true end
-    if k == Enum.KeyCode.S then keysPressed.S = true end
-    if k == Enum.KeyCode.D then keysPressed.D = true end
-    if k == Enum.KeyCode.Space then keysPressed.Space = true end
-    if k == Enum.KeyCode.LeftShift then keysPressed.LeftShift = true end
+local keys = {W=false,A=false,S=false,D=false,Space=false,LeftShift=false}
+UserInputService.InputBegan:Connect(function(i,gp) if gp then return end
+    if i.KeyCode == Enum.KeyCode.W then keys.W = true end
+    if i.KeyCode == Enum.KeyCode.A then keys.A = true end
+    if i.KeyCode == Enum.KeyCode.S then keys.S = true end
+    if i.KeyCode == Enum.KeyCode.D then keys.D = true end
+    if i.KeyCode == Enum.KeyCode.Space then keys.Space = true end
+    if i.KeyCode == Enum.KeyCode.LeftShift then keys.LeftShift = true end
 end)
-
-UserInputService.InputEnded:Connect(function(input)
-    local k = input.KeyCode
-    if k == Enum.KeyCode.W then keysPressed.W = false end
-    if k == Enum.KeyCode.A then keysPressed.A = false end
-    if k == Enum.KeyCode.S then keysPressed.S = false end
-    if k == Enum.KeyCode.D then keysPressed.D = false end
-    if k == Enum.KeyCode.Space then keysPressed.Space = false end
-    if k == Enum.KeyCode.LeftShift then keysPressed.LeftShift = false end
+UserInputService.InputEnded:Connect(function(i)
+    if i.KeyCode == Enum.KeyCode.W then keys.W = false end
+    if i.KeyCode == Enum.KeyCode.A then keys.A = false end
+    if i.KeyCode == Enum.KeyCode.S then keys.S = false end
+    if i.KeyCode == Enum.KeyCode.D then keys.D = false end
+    if i.KeyCode == Enum.KeyCode.Space then keys.Space = false end
+    if i.KeyCode == Enum.KeyCode.LeftShift then keys.LeftShift = false end
 end)
 
 RunService.RenderStepped:Connect(function()
     if flying and humanoidRootPart then
-        local direction = Vector3.new(0,0,0)
-        local cam = workspace.CurrentCamera
-
-        if keysPressed.W then direction += cam.CFrame.LookVector end
-        if keysPressed.S then direction -= cam.CFrame.LookVector end
-        if keysPressed.A then direction -= cam.CFrame.RightVector end
-        if keysPressed.D then direction += cam.CFrame.RightVector end
-        if keysPressed.Space then direction += Vector3.new(0,1,0) end
-        if keysPressed.LeftShift then direction -= Vector3.new(0,1,0) end
-
-        if direction.Magnitude > 0 then
-            humanoidRootPart.Velocity = direction.Unit * flySpeed
-        else
-            humanoidRootPart.Velocity = Vector3.new(0,0,0)
-        end
+        local dir = Vector3.new(0,0,0)
+        local cam = workspace.CurrentCamera.CFrame
+        if keys.W then dir += cam.LookVector end
+        if keys.S then dir -= cam.LookVector end
+        if keys.A then dir -= cam.RightVector end
+        if keys.D then dir += cam.RightVector end
+        if keys.Space then dir += Vector3.new(0,1,0) end
+        if keys.LeftShift then dir -= Vector3.new(0,1,0) end
+        humanoidRootPart.Velocity = dir.Unit * flySpeed
     end
 end)
 
 -- ==================== TELEPORTS ====================
-local function TP(pos)
-    local char = player.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = pos
+local function TP(cf)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = cf
     end
 end
 
@@ -182,100 +159,89 @@ TPTab:CreateButton({Name = "🔩 Auto-Peças", Callback = function() TP(CFrame.n
 TPTab:CreateButton({Name = "🚧 Garagem", Callback = function() TP(CFrame.new(-3556.26294, 148.45932, 907.711731)) end})
 TPTab:CreateButton({Name = "Dinametros", Callback = function() TP(CFrame.new(-4079.77246, 160.567535, 1490.77039)) end})
 
--- ==================== AUTO UBER FARM ====================
-
+-- ==================== AUTO UBER FARM (TELEPORTE) ====================
 local autoUberEnabled = false
-local uberConnection = nil
+local uberConn = nil
 
-local function findUberDestination()
+local function getDestination()
     for _, v in ipairs(workspace:GetDescendants()) do
-        if v.Name:lower():find("destination") or v.Name:lower():find("destino") or 
-           v.Name:lower():find("marker") or v.Name:lower():find("target") then
-            if v:IsA("BasePart") then
-                return v
-            end
+        local n = v.Name:lower()
+        if n:find("destination") or n:find("destino") or n:find("marker") or n:find("target") or n:find("goal") then
+            if v:IsA("BasePart") then return v
+            elseif v:IsA("Model") and v.PrimaryPart then return v.PrimaryPart end
         end
     end
     return nil
 end
 
+local function teleportToDestination()
+    local dest = getDestination()
+    if not dest then return end
+
+    local char = player.Character
+    if not char then return end
+
+    -- Tenta encontrar o VehicleSeat
+    local seat = char:FindFirstChildWhichIsA("VehicleSeat")
+    local root = seat or char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local targetCFrame = dest.CFrame * CFrame.new(0, 6, 0) -- 6 studs acima
+
+    pcall(function()
+        root.CFrame = targetCFrame
+        if root.Velocity then root.Velocity = Vector3.new(0,0,0) end
+    end)
+end
+
 UberTab:CreateToggle({
-    Name = "🚕 Ativar Auto Farm Uber",
+    Name = "🚕 Auto Farm Uber (Teleporte)",
     CurrentValue = false,
     Callback = function(Value)
         autoUberEnabled = Value
-        
         if Value then
-            print("🚕 Auto Uber Farm LIGADO")
+            print("🚕 Auto Uber Farm (Teleporte) ATIVADO")
             
-            uberConnection = RunService.Heartbeat:Connect(function()
-                if not autoUberEnabled then return end
-                
-                local char = player.Character
-                if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-                
-                local root = char.HumanoidRootPart
-                local dest = findUberDestination()
-                
-                if dest then
-                    local distance = (dest.Position - root.Position).Magnitude
-                    
-                    if distance > 25 then
-                        local direction = (dest.Position - root.Position).Unit
-                        root.Velocity = direction * 140
-                        root.CFrame = CFrame.lookAt(root.Position, dest.Position)
-                    end
-                end
-            end)
-            
-            -- Auto aceitar jobs
+            uberConn = RunService.Heartbeat:Connect(teleportToDestination)
+
+            -- Auto aceitar corrida
             task.spawn(function()
                 while autoUberEnabled do
-                    for _, v in ipairs(workspace:GetDescendants()) do
-                        if v:FindFirstChild("ProximityPrompt") and 
-                           (v.Name:lower():find("uber") or v.Name:lower():find("taxi")) then
-                            pcall(function()
-                                fireproximityprompt(v.ProximityPrompt)
-                            end)
+                    for _, obj in ipairs(workspace:GetDescendants()) do
+                        if obj:FindFirstChild("ProximityPrompt") then
+                            local name = obj.Name:lower()
+                            if name:find("uber") or name:find("taxi") or name:find("passageiro") then
+                                pcall(function()
+                                    fireproximityprompt(obj.ProximityPrompt, 0, true)
+                                end)
+                            end
                         end
                     end
-                    task.wait(4)
+                    task.wait(3)
                 end
             end)
         else
-            if uberConnection then
-                uberConnection:Disconnect()
-                uberConnection = nil
+            if uberConn then
+                uberConn:Disconnect()
+                uberConn = nil
             end
-            print("🚕 Auto Uber Farm DESLIGADO")
+            print("🚕 Auto Uber Farm DESATIVADO")
         end
-    end,
+    end
 })
 
-UberTab:CreateSlider({
-    Name = "Velocidade do Uber",
-    Range = {80, 200},
-    Increment = 5,
-    CurrentValue = 140,
-    Suffix = "Studs/s",
-    Callback = function(v) -- velocidade já está hardcoded, pode melhorar depois
-    end,
-})
-
-UberTab:CreateLabel("Dica: Use com um carro bom e deixe o Auto Farm ligado", Color3.fromRGB(255, 215, 0))
+UberTab:CreateLabel("💡 Deixe ligado enquanto estiver em uma corrida", Color3.fromRGB(255, 215, 0))
+UberTab:CreateLabel("O carro vai teleportar até o destino automaticamente", Color3.fromRGB(255, 100, 100))
 
 -- ==================== CREDITS ====================
-local CreditsTab = Window:CreateTab("Credits", 4483362458)
 CreditsTab:CreateLabel("HUB BY: OfficialPatozoid")
-CreditsTab:CreateLabel("Auto Uber Farm adicionado por Grok", nil, Color3.fromRGB(0, 255, 100))
+CreditsTab:CreateLabel("Auto Uber Farm (Teleporte) adicionado por Grok", nil, Color3.fromRGB(0, 255, 100))
 CreditsTab:CreateButton({
-    Name = "Copy Discord Link",
+    Name = "Copiar Discord",
     Callback = function()
         setclipboard("https://discord.gg/7dkp6uhYNb")
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Discord",
-            Text = "Link copiado!",
-            Duration = 3
-        })
-    end,
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title="Sucesso", Text="Link copiado!", Duration=3})
+    end
 })
+
+print("✅ Mec BR Hub carregado com Auto Uber Teleporte!")
